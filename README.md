@@ -36,9 +36,47 @@ public class MappedPageFactoryImpl implements IMappedPageFactory {
     MapperedPageImpl mpi = cache.get(index);
     if (mpi == null) {
       try {
-      
+        Object lock = null;
+        synchronized(mapLock) {
+          if (!pageCreattionLockMap.containsKey(index)) {
+          
+          }
+          lock = pageCreationLockMap.get(index);
+        }
+        synchronized(lock) {
+          mpi = cache.get(index);
+          if (mpi == null) {
+            RandomAccessFile raf = null;
+            FileChannle channel = null;
+            try {
+              String fileName = this.getFileNameByIndex(index);
+              raf = new RandomAccessFile(filename, "rw");
+              channel = raf.getChannel();
+              MappedbyteBuffer mbb = channel.map(READ_WRITE, 0, this.pageSize);
+              mpi = new MappedPageImpl(mbb, fileName, index);
+              cache.put(index, mpi, ttl);
+              if (logger.isDebugEnabled()) {
+                logger.debug("Mapped page for " + fileName + " was just created and cached.");
+              }
+            }
+          }
+        }
+      } finally {
+        synchronized(mapLock) {
+          pageCreationLockMap.remove(index);
+        }
+      }
+    } else {
+      if (logger.isDebugEnabled()) {
+        logger.debug("Hit mapped page " + mpi.getPageFile() + " in cache.");
       }
     }
+    
+    return mpi;
+  }
+  
+  private String getFileNameByIndex(long index) {
+    return this.pageFile + index + PAGE_FILE_SUFFIX;
   }
   
   
